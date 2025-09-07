@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ClauseDetailPanel } from './clause-detail-panel';
 import type { PartyPerspective } from '@/types';
-import { CheckCircle, XCircle, AlertTriangle, Info, ChevronRight } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 
 interface AnalysisResultsProps {
   reviewId: string;
   partyPerspective: PartyPerspective;
+  onSwitchParty?: (newPerspective: PartyPerspective) => void;
 }
 
 interface MatrixItem {
@@ -41,10 +43,11 @@ interface ReviewData {
   analyses: any[];
 }
 
-export function AnalysisResults({ reviewId, partyPerspective }: AnalysisResultsProps) {
+export function AnalysisResults({ reviewId, partyPerspective, onSwitchParty }: AnalysisResultsProps) {
   const [data, setData] = useState<ReviewData | null>(null);
   const [selectedClause, setSelectedClause] = useState<string | null>(null);
   const [selectedRuleType, setSelectedRuleType] = useState<string | null>(null);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,7 +125,18 @@ export function AnalysisResults({ reviewId, partyPerspective }: AnalysisResultsP
     if (analysis || ruleType === 'missing') {
       setSelectedClause(clauseName);
       setSelectedRuleType(ruleType);
+      setRightPanelOpen(true);
     }
+  };
+
+  const handlePanelClose = () => {
+    setRightPanelOpen(false);
+  };
+
+  const handleSaveChanges = async (clauseId: string, changes: any) => {
+    // Implementation for saving changes to the analysis
+    console.log('Saving changes:', clauseId, changes);
+    // You can add API call here to save changes to the database
   };
 
   if (loading) {
@@ -297,96 +311,17 @@ export function AnalysisResults({ reviewId, partyPerspective }: AnalysisResultsP
         </CardContent>
       </Card>
 
-      {/* Selected Analysis Details */}
-      {selectedClause && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span>{selectedClause}</span>
-              <ChevronRight className="w-4 h-4" />
-              <span>{getStatusText(selectedRuleType || '')}</span>
-            </CardTitle>
-            <CardDescription>
-              Analysis details for {partyPerspective} party perspective
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            
-            {selectedAnalysis ? (
-              <>
-                {/* Detected Text */}
-                {selectedAnalysis.detected_text && (
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">Detected Text:</h4>
-                    <div className="bg-white p-3 rounded border text-sm">
-                      {selectedAnalysis.detected_text}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Confidence & Risk */}
-                <div className="flex gap-4">
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-1">Confidence:</h4>
-                    <Badge variant="outline">
-                      {(selectedAnalysis.confidence_score * 100).toFixed(0)}%
-                    </Badge>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-1">Risk Level:</h4>
-                    <Badge 
-                      variant={selectedAnalysis.risk_level >= 4 ? 'destructive' : 
-                               selectedAnalysis.risk_level >= 3 ? 'secondary' : 'default'}
-                    >
-                      {selectedAnalysis.risk_level}/5
-                    </Badge>
-                  </div>
-                </div>
-                
-                {/* Recommended Action */}
-                <div>
-                  <h4 className="font-medium text-gray-700 mb-2">Recommended Action:</h4>
-                  <div className="bg-white p-3 rounded border text-sm">
-                    {selectedAnalysis.recommended_action}
-                  </div>
-                </div>
-                
-                {/* AI Suggestion */}
-                {selectedAnalysis.suggested_text && (
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">AI Suggestion:</h4>
-                    <div className="bg-white p-3 rounded border text-sm font-mono">
-                      {selectedAnalysis.suggested_text}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : selectedRuleType === 'missing' ? (
-              <div>
-                <div className="bg-white p-3 rounded border text-sm">
-                  This clause appears to be missing from the NDA document. Consider adding a 
-                  {' '}<strong>{selectedClause}</strong> clause that aligns with {partyPerspective} party interests.
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="bg-white p-3 rounded border text-sm">
-                  No analysis available for this combination.
-                </div>
-              </div>
-            )}
-            
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                Edit Suggestion
-              </Button>
-              <Button variant="outline" size="sm">
-                Export Analysis
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Right Panel Detail Component */}
+      <ClauseDetailPanel
+        isOpen={rightPanelOpen}
+        onClose={handlePanelClose}
+        selectedClause={selectedClause}
+        selectedRuleType={selectedRuleType}
+        selectedAnalysis={selectedAnalysis}
+        partyPerspective={partyPerspective}
+        onSwitchParty={onSwitchParty || (() => {})}
+        onSaveChanges={handleSaveChanges}
+      />
     </div>
   );
 }

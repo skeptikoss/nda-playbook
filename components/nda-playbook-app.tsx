@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PartySelection } from './party-selection';
 import { PlaybookBrowser } from './playbook-browser';
 import { UploadSection } from './upload-section';
@@ -72,6 +72,58 @@ export function NDAPlaybookApp() {
       uploadProgress: 0
     });
   };
+
+  const handleSwitchParty = (newPerspective: PartyPerspective) => {
+    setAppState(prev => ({
+      ...prev,
+      partyPerspective: newPerspective
+    }));
+  };
+
+  const cycleThroughParties = () => {
+    const parties: PartyPerspective[] = ['receiving', 'disclosing', 'mutual'];
+    const currentIndex = parties.indexOf(appState.partyPerspective!);
+    const nextIndex = (currentIndex + 1) % parties.length;
+    handleSwitchParty(parties[nextIndex]);
+  };
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle shortcuts when not in input fields
+      const isInInput = (event.target as HTMLElement)?.tagName === 'INPUT' || 
+                       (event.target as HTMLElement)?.tagName === 'TEXTAREA';
+      
+      if (!isInInput && appState.partyPerspective) {
+        if (event.key === 'p' || event.key === 'P') {
+          event.preventDefault();
+          cycleThroughParties();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [appState.partyPerspective, cycleThroughParties]);
+
+  // Party perspective persistence
+  useEffect(() => {
+    // Load party perspective from localStorage on mount
+    const savedPerspective = localStorage.getItem('nda-playbook-party-perspective') as PartyPerspective | null;
+    if (savedPerspective && !appState.partyPerspective) {
+      setAppState(prev => ({
+        ...prev,
+        partyPerspective: savedPerspective
+      }));
+    }
+  }, [appState.partyPerspective]);
+
+  useEffect(() => {
+    // Save party perspective to localStorage when it changes
+    if (appState.partyPerspective) {
+      localStorage.setItem('nda-playbook-party-perspective', appState.partyPerspective);
+    }
+  }, [appState.partyPerspective]);
 
   // If no party selected, show party selection
   if (!appState.partyPerspective) {
@@ -277,6 +329,7 @@ export function NDAPlaybookApp() {
               <AnalysisResults
                 reviewId={appState.reviewId}
                 partyPerspective={appState.partyPerspective}
+                onSwitchParty={handleSwitchParty}
               />
             </div>
           )}
