@@ -1,0 +1,53 @@
+MUTUAL NON-DISCLOSURE AGREEMENT
+
+This Mutual Non-Disclosure Agreement ("Agreement") is entered into on September 6, 2025, between TechCorp Pte Ltd, a Singapore company ("Company A") and InvestCorp Holdings Pte Ltd, a Singapore company ("Company B").
+
+RECITALS
+
+WHEREAS, the parties wish to explore potential business opportunities that may require the exchange of confidential information;
+
+NOW THEREFORE, in consideration of the mutual covenants and agreements contained herein, the parties agree as follows:
+
+1. DEFINITION OF CONFIDENTIAL INFORMATION
+
+For the purposes of this Agreement, "Confidential Information" shall mean all information disclosed by either party to the other party, whether written or oral, marked or unmarked, and shall be deemed confidential regardless of marking. All information shared during due diligence shall be presumed confidential whether specifically marked as confidential or not. This includes but is not limited to all business information, technical data, trade secrets, know-how, research, product plans, products, services, customers, customer lists, markets, software, developments, inventions, processes, formulas, technology, designs, drawings, engineering, hardware configuration information, marketing strategies, finances, or any other proprietary information.
+
+The receiving party acknowledges that any disclosure of such information would cause irreparable harm to the disclosing party.
+
+2. DURATION OF CONFIDENTIALITY OBLIGATIONS  
+
+Each party agrees to hold in confidence all Confidential Information received from the other party for a period of ten (10) years from the date of initial disclosure. For information constituting trade secrets, the confidentiality obligations shall survive indefinitely and continue in perpetuity even after termination of this Agreement.
+
+The obligations of confidentiality shall remain binding upon the parties forever and shall not be subject to any time limitation.
+
+3. GOVERNING LAW AND JURISDICTIONS
+
+This Agreement shall be governed by and construed in accordance with the laws of Singapore. The parties hereby consent to the exclusive jurisdiction of the Singapore courts for resolution of any disputes arising under this Agreement.
+
+Any legal proceedings relating to this Agreement shall be subject to Singapore law and the Singapore International Arbitration Centre (SIAC) procedures.
+
+4. USE AND DISCLOSURE RESTRICTIONS
+
+The receiving party shall not use the Confidential Information for any purpose other than evaluating potential business opportunities. The receiving party shall not disclose the Confidential Information to any third parties without prior written consent of the disclosing party.
+
+5. RETURN OF MATERIALS
+
+Upon termination of discussions or upon request, all confidential materials shall be returned or destroyed at the disclosing party's option.
+
+6. REMEDIES
+
+The parties acknowledge that any breach of this Agreement will cause irreparable harm and that monetary damages may be inadequate. Therefore, each party shall be entitled to seek equitable relief, including injunction and specific performance, in addition to all other remedies available at law or in equity.
+
+7. MISCELLANEOUS
+
+This Agreement constitutes the entire agreement between the parties regarding confidential information. Any modifications must be in writing and signed by both parties.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
+
+TECHCORP PTE LTD                    INVESTCORP HOLDINGS PTE LTD
+
+
+By: _________________              By: _________________
+Name: John Smith                    Name: Sarah Johnson
+Title: Chief Executive Officer      Title: Managing Director
+Date: September 6, 2025            Date: September 6, 2025

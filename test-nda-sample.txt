@@ -1,0 +1,33 @@
+MUTUAL NON-DISCLOSURE AGREEMENT
+
+This Mutual Non-Disclosure Agreement ("Agreement") is entered into on [DATE] between TechCorp Pte Ltd ("Company A") and InvestCorp Holdings ("Company B").
+
+1. DEFINITION OF CONFIDENTIAL INFORMATION
+
+For purposes of this Agreement, "Confidential Information" shall mean all information, technical data, trade secrets, know-how, research, product plans, products, services, customers, customer lists, markets, software, developments, inventions, processes, formulas, technology, designs, drawings, engineering, hardware configuration information, marketing, finances, or other business information disclosed by either party to the other party.
+
+All information shall be deemed confidential regardless of whether it is marked as confidential or not.
+
+2. DURATION OF CONFIDENTIALITY OBLIGATIONS
+
+Each party agrees to hold in confidence all Confidential Information received from the other party for a period of ten (10) years from the date of disclosure, and indefinitely for information constituting trade secrets.
+
+The obligations of confidentiality shall survive termination of this Agreement and continue indefinitely.
+
+3. GOVERNING LAW AND JURISDICTION
+
+This Agreement shall be governed by and construed in accordance with the laws of Singapore. Any disputes arising under this Agreement shall be subject to the exclusive jurisdiction of the courts of Singapore.
+
+The parties consent to the jurisdiction of the Singapore courts for all purposes related to this Agreement.
+
+4. REMEDIES
+
+The parties acknowledge that any breach of this Agreement will cause irreparable harm and that monetary damages may be inadequate. Therefore, each party shall be entitled to seek equitable relief, including injunction and specific performance.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
+
+TECHCORP PTE LTD                    INVESTCORP HOLDINGS
+
+By: _________________              By: _________________
+Name: John Smith                    Name: Sarah Johnson
+Title: CEO                          Title: Managing Director

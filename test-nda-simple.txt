@@ -1,0 +1,12 @@
+MUTUAL NON-DISCLOSURE AGREEMENT
+
+This Mutual Non-Disclosure Agreement ("Agreement") is entered into on September 6, 2025, between TechCorp Pte Ltd ("Company A") and InvestCorp Holdings Pte Ltd ("Company B").
+
+1. DEFINITION OF CONFIDENTIAL INFORMATION
+For the purposes of this Agreement, "Confidential Information" shall mean all information disclosed by either party, whether written or oral, marked or unmarked, and shall be deemed confidential regardless of marking. All information shared shall be presumed confidential whether specifically marked as confidential or not.
+
+2. DURATION OF CONFIDENTIALITY OBLIGATIONS  
+Each party agrees to hold in confidence all Confidential Information for a period of ten (10) years from disclosure. For trade secrets, obligations shall survive indefinitely and continue in perpetuity even after termination.
+
+3. GOVERNING LAW AND JURISDICTIONS
+This Agreement shall be governed by Singapore law. The parties consent to exclusive jurisdiction of Singapore courts and SIAC arbitration procedures.
