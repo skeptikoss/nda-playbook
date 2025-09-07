@@ -5,13 +5,22 @@ import { PartySelection } from './party-selection';
 import { PlaybookBrowser } from './playbook-browser';
 import { UploadSection } from './upload-section';
 import { AnalysisResults } from './analysis-results';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { PartyPerspective } from '@/types';
 import { BookOpen, Upload, BarChart3, ArrowLeft } from 'lucide-react';
 
 type AppSection = 'party-selection' | 'playbook' | 'upload' | 'results';
+
+interface StoredAnalysis {
+  reviewId: string;
+  clientName: string;
+  ndaTitle: string;
+  partyPerspective: PartyPerspective;
+  analysedAt: string;
+  overallScore: number;
+}
 
 interface AppState {
   currentSection: AppSection;
@@ -20,6 +29,8 @@ interface AppState {
   uploadProgress: number;
 }
 
+const MAX_STORED_ANALYSES = 3;
+
 export function NDAPlaybookApp() {
   const [appState, setAppState] = useState<AppState>({
     currentSection: 'party-selection',
@@ -27,6 +38,11 @@ export function NDAPlaybookApp() {
     reviewId: null,
     uploadProgress: 0
   });
+  
+  
+  // Stored analyses state
+  const [storedAnalyses, setStoredAnalyses] = useState<StoredAnalysis[]>([]);
+  const [selectedStoredAnalysis, setSelectedStoredAnalysis] = useState<string | null>(null);
 
   const handlePartySelected = (perspective: PartyPerspective) => {
     setAppState(prev => ({
@@ -56,11 +72,54 @@ export function NDAPlaybookApp() {
     }));
   };
 
-  const handleUploadComplete = (reviewId: string) => {
+  const handleUploadComplete = (reviewId: string, clientName?: string, ndaTitle?: string, overallScore?: number) => {
     setAppState(prev => ({
       ...prev,
       reviewId,
       currentSection: 'results' // Auto-navigate to results after analysis
+    }));
+    
+    // Store the analysis for persistent access
+    if (clientName && ndaTitle && typeof overallScore === 'number' && appState.partyPerspective) {
+      storeAnalysis({
+        reviewId,
+        clientName,
+        ndaTitle,
+        partyPerspective: appState.partyPerspective,
+        analysedAt: new Date().toISOString(),
+        overallScore
+      });
+    }
+  };
+
+  // Function to store analysis in localStorage (keep last 3)
+  const storeAnalysis = (analysis: StoredAnalysis) => {
+    const stored = getStoredAnalyses();
+    const updated = [analysis, ...stored.filter(a => a.reviewId !== analysis.reviewId)]
+      .slice(0, MAX_STORED_ANALYSES);
+    
+    localStorage.setItem('nda-playbook-stored-analyses', JSON.stringify(updated));
+    setStoredAnalyses(updated);
+  };
+
+  // Function to get stored analyses from localStorage
+  const getStoredAnalyses = (): StoredAnalysis[] => {
+    try {
+      const stored = localStorage.getItem('nda-playbook-stored-analyses');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Function to handle selecting a stored analysis
+  const handleStoredAnalysisSelect = (reviewId: string, partyPerspective: PartyPerspective) => {
+    setSelectedStoredAnalysis(reviewId);
+    setAppState(prev => ({
+      ...prev,
+      reviewId: null, // Clear current session review ID
+      partyPerspective,
+      currentSection: 'results'
     }));
   };
 
@@ -71,6 +130,7 @@ export function NDAPlaybookApp() {
       reviewId: null,
       uploadProgress: 0
     });
+    setSelectedStoredAnalysis(null); // Clear selected stored analysis
   };
 
   const handleSwitchParty = (newPerspective: PartyPerspective) => {
@@ -86,6 +146,7 @@ export function NDAPlaybookApp() {
     const nextIndex = (currentIndex + 1) % parties.length;
     handleSwitchParty(parties[nextIndex]);
   };
+  
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -106,7 +167,7 @@ export function NDAPlaybookApp() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [appState.partyPerspective, cycleThroughParties]);
 
-  // Party perspective persistence
+  // Party perspective and stored analyses persistence
   useEffect(() => {
     // Load party perspective from localStorage on mount
     const savedPerspective = localStorage.getItem('nda-playbook-party-perspective') as PartyPerspective | null;
@@ -116,6 +177,10 @@ export function NDAPlaybookApp() {
         partyPerspective: savedPerspective
       }));
     }
+    
+    // Load stored analyses on mount
+    const stored = getStoredAnalyses();
+    setStoredAnalyses(stored);
   }, [appState.partyPerspective]);
 
   useEffect(() => {
@@ -136,12 +201,12 @@ export function NDAPlaybookApp() {
     );
   }
 
-  // Main 3-section UI with Kaiterra design system
+  // Main 3-section UI with Kaiterra design system and consistent layout
   return (
     <div className="min-h-screen bg-neutral-100 flex">
       
-      {/* Fixed Left Sidebar - Kaiterra monitoring dashboard style */}
-      <div className="w-80 bg-white border-r border-neutral-200 flex flex-col shadow-medium">
+      {/* Fixed Left Sidebar */}
+      <div className="bg-white border-r border-neutral-200 flex flex-col shadow-medium w-80">
         
         {/* Header - Professional monitoring aesthetic */}
         <div className="p-6 border-b border-neutral-200 bg-gradient-to-r from-kaiterra-50 to-white">
@@ -249,34 +314,66 @@ export function NDAPlaybookApp() {
               appState.currentSection === 'results' ? 'bg-neutral-50 border-l-4 border-l-neutral-600' : ''
             }`}
           >
-            <button
-              onClick={() => handleSectionChange('results')}
-              disabled={!appState.reviewId}
-              className="w-full p-4 text-left hover:bg-neutral-50 transition-all duration-200 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
-            >
-              <div className={`p-2 rounded-xl transition-colors ${
-                appState.currentSection === 'results' && appState.reviewId
-                  ? 'bg-neutral-600 text-white' 
-                  : appState.reviewId 
-                  ? 'bg-neutral-100 text-neutral-600 group-hover:bg-neutral-200'
-                  : 'bg-neutral-100 text-neutral-400'
-              }`}>
-                <BarChart3 className="w-4 h-4" />
-              </div>
-              <div className="flex-1">
-                <div className={`font-semibold text-sm ${
-                  appState.currentSection === 'results' ? 'text-neutral-700' : 'text-neutral-600'
+            <div className="relative group">
+              <button
+                onClick={() => {
+                  if (appState.reviewId) {
+                    handleSectionChange('results');
+                  } else if (storedAnalyses.length > 0) {
+                    // Clear selected stored analysis to show selection interface
+                    setSelectedStoredAnalysis(null);
+                    handleSectionChange('results');
+                  }
+                }}
+                disabled={!appState.reviewId && storedAnalyses.length === 0}
+                className="w-full p-4 text-left hover:bg-neutral-50 transition-all duration-200 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <div className={`p-2 rounded-xl transition-colors ${
+                  appState.currentSection === 'results' && (appState.reviewId || storedAnalyses.length > 0)
+                    ? 'bg-neutral-600 text-white' 
+                    : (appState.reviewId || storedAnalyses.length > 0)
+                    ? 'bg-neutral-100 text-neutral-600 group-hover:bg-neutral-200'
+                    : 'bg-neutral-100 text-neutral-400'
                 }`}>
-                  📊 Analysis Results
+                  <BarChart3 className="w-4 h-4" />
                 </div>
-                <div className="text-xs text-neutral-500">
-                  {appState.reviewId ? 'View analysis matrix' : 'Complete upload first'}
+                <div className="flex-1">
+                  <div className={`font-semibold text-sm ${
+                    appState.currentSection === 'results' ? 'text-neutral-700' : 'text-neutral-600'
+                  }`}>
+                    📊 Analysis Results
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    {appState.reviewId ? 'View current analysis' : 
+                     storedAnalyses.length > 0 ? `${storedAnalyses.length} stored analysis` : 'Complete upload first'}
+                  </div>
                 </div>
-              </div>
-              {appState.currentSection === 'results' && appState.reviewId && (
-                <div className="w-2 h-2 bg-neutral-600 rounded-full shadow-soft animate-pulse"></div>
+                {appState.currentSection === 'results' && (appState.reviewId || storedAnalyses.length > 0) && (
+                  <div className="w-2 h-2 bg-neutral-600 rounded-full shadow-soft animate-pulse"></div>
+                )}
+              </button>
+              
+              {/* Dropdown for stored analyses when multiple exist */}
+              {!appState.reviewId && storedAnalyses.length > 1 && appState.currentSection === 'results' && (
+                <div className="absolute top-full left-4 right-4 bg-white border border-neutral-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                  {storedAnalyses.map((analysis, index) => (
+                    <button
+                      key={analysis.reviewId}
+                      onClick={() => handleStoredAnalysisSelect(analysis.reviewId, analysis.partyPerspective)}
+                      className="w-full p-3 text-left hover:bg-neutral-50 flex items-center justify-between border-b border-neutral-100 last:border-b-0"
+                    >
+                      <div>
+                        <div className="font-medium text-sm text-neutral-700">{analysis.clientName}</div>
+                        <div className="text-xs text-neutral-500">{analysis.ndaTitle}</div>
+                        <div className="text-xs text-neutral-400">
+                          {analysis.partyPerspective} • {(analysis.overallScore * 100).toFixed(0)}% • {new Date(analysis.analysedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               )}
-            </button>
+            </div>
           </div>
 
           {/* Status Footer - Enhanced monitoring dashboard style */}
@@ -303,8 +400,8 @@ export function NDAPlaybookApp() {
         </div>
       </div>
 
-      {/* Main Content Area - Kaiterra monitoring dashboard style */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white">
+      {/* Main Content Area - Fixed width */}
+      <div className="flex flex-col flex-1 min-w-0 bg-white">
         <div className="flex-1 overflow-auto bg-gradient-to-br from-neutral-50 via-white to-neutral-50">
           {appState.currentSection === 'playbook' && (
             <div className="h-full">
@@ -316,7 +413,9 @@ export function NDAPlaybookApp() {
             <div className="h-full">
               <UploadSection
                 partyPerspective={appState.partyPerspective}
-                onUploadComplete={handleUploadComplete}
+                onUploadComplete={(reviewId, clientName, ndaTitle, overallScore) => 
+                  handleUploadComplete(reviewId, clientName, ndaTitle, overallScore)
+                }
                 onProgressUpdate={(progress) => 
                   setAppState(prev => ({ ...prev, uploadProgress: progress }))
                 }
@@ -324,17 +423,98 @@ export function NDAPlaybookApp() {
             </div>
           )}
           
-          {appState.currentSection === 'results' && appState.reviewId && (
+          {appState.currentSection === 'results' && (appState.reviewId || selectedStoredAnalysis) && (
             <div className="h-full">
               <AnalysisResults
-                reviewId={appState.reviewId}
+                reviewId={appState.reviewId || selectedStoredAnalysis}
                 partyPerspective={appState.partyPerspective}
                 onSwitchParty={handleSwitchParty}
               />
             </div>
           )}
+          
+          {/* Show stored analyses selection when no active session */}
+          {appState.currentSection === 'results' && !appState.reviewId && !selectedStoredAnalysis && storedAnalyses.length > 0 && (
+            <div className="p-6 space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  📊 Select Analysis to View
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Choose from your {storedAnalyses.length} recent NDA analyse{storedAnalyses.length > 1 ? 's' : ''}
+                </p>
+              </div>
+              
+              <div className="max-w-4xl mx-auto grid gap-4">
+                {storedAnalyses.map((analysis, index) => (
+                  <Card key={analysis.reviewId} className="hover:shadow-lg transition-all duration-200 cursor-pointer hover:border-blue-200">
+                    <CardContent 
+                      className="p-6"
+                      onClick={() => handleStoredAnalysisSelect(analysis.reviewId, analysis.partyPerspective)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          {/* Analysis number */}
+                          <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-semibold text-sm">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-lg text-gray-900">{analysis.clientName}</h3>
+                            <p className="text-gray-600 mb-2">{analysis.ndaTitle}</p>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <Badge variant={
+                                analysis.partyPerspective === 'receiving' ? 'default' :
+                                analysis.partyPerspective === 'disclosing' ? 'secondary' : 'outline'
+                              }>
+                                {analysis.partyPerspective.charAt(0).toUpperCase() + analysis.partyPerspective.slice(1)} Party
+                              </Badge>
+                              <Badge variant={
+                                analysis.overallScore >= 0.7 ? 'default' :
+                                analysis.overallScore >= 0.4 ? 'secondary' : 'destructive'
+                              }>
+                                Score: {(analysis.overallScore * 100).toFixed(0)}%
+                              </Badge>
+                              <span className="flex items-center gap-1">
+                                📅 {new Date(analysis.analysedAt).toLocaleDateString()}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                ⏱️ {new Date(analysis.analysedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                            View Analysis →
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              
+              {/* Quick action buttons */}
+              <div className="text-center pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setAppState(prev => ({ ...prev, currentSection: 'upload' }))}
+                  className="mr-4"
+                >
+                  📤 Analyse New NDA
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setAppState(prev => ({ ...prev, currentSection: 'playbook' }))}
+                >
+                  📖 Browse Playbook
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+      
     </div>
   );
 }

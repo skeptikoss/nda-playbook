@@ -137,7 +137,98 @@ async function fetchClauses() {
 }
 
 /**
+ * Broad detection keywords for each clause type (Phase 1: Detection)
+ */
+const DETECTION_KEYWORDS = {
+  'definition': ['confidential', 'information', 'define', 'proprietary', 'secret', 'disclosure'],
+  'duration': ['year', 'period', 'term', 'duration', 'survive', 'time', 'expir', 'effect'],
+  'governing': ['govern', 'jurisdiction', 'court', 'law', 'dispute', 'forum', 'venue']
+};
+
+/**
+ * Detect if a clause type exists in the document (broad search)
+ */
+function detectClauseInDocument(text: string, clauseName: string): {
+  detected: boolean;
+  bestText: string;
+  confidence: number;
+} {
+  const normalizedText = text.toLowerCase();
+  const clauseKey = clauseName.toLowerCase().includes('definition') ? 'definition' :
+                   clauseName.toLowerCase().includes('duration') ? 'duration' :
+                   clauseName.toLowerCase().includes('governing') ? 'governing' : null;
+  
+  if (!clauseKey) {
+    return { detected: false, bestText: '', confidence: 0 };
+  }
+  
+  const keywords = DETECTION_KEYWORDS[clauseKey];
+  const segments = findRelevantTextSegments(text, keywords, 800);
+  
+  if (segments.length === 0) {
+    return { detected: false, bestText: '', confidence: 0 };
+  }
+  
+  // Find the best segment based on keyword density
+  const bestSegment = segments[0];
+  const keywordCount = keywords.filter(keyword => 
+    normalizedText.includes(keyword.toLowerCase())
+  ).length;
+  
+  const detected = keywordCount >= 1; // At least 1 detection keyword must be present
+  
+  return {
+    detected,
+    bestText: bestSegment.text,
+    confidence: bestSegment.score
+  };
+}
+
+/**
+ * Evaluate clause quality for specific party perspective (Phase 2: Quality Assessment)
+ */
+function evaluateClauseForParty(
+  detectedText: string,
+  clauseRules: ClauseRule[],
+  partyPerspective: PartyPerspective
+): { ruleType: 'starting_position' | 'fallback' | 'not_acceptable'; confidence: number; bestRule: ClauseRule } | null {
+  let bestScore = 0;
+  let bestRule: ClauseRule | null = null;
+  let bestRuleType: 'starting_position' | 'fallback' | 'not_acceptable' = 'not_acceptable';
+  
+  // Test against each rule type to find the best match
+  for (const rule of clauseRules) {
+    if (!rule.keywords || rule.keywords.length === 0) continue;
+    
+    const { score } = calculateKeywordOverlap(detectedText, rule.keywords);
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestRule = rule;
+      bestRuleType = rule.rule_type;
+    }
+  }
+  
+  if (!bestRule || bestScore < 0.1) {
+    // If no specific rule matched well, classify based on party perspective and content analysis
+    const defaultRule = clauseRules.find(r => r.rule_type === 'not_acceptable') || clauseRules[0];
+    return {
+      ruleType: 'not_acceptable', // Default to not acceptable if no good matches
+      confidence: 0.3, // Low confidence for default classification
+      bestRule: defaultRule
+    };
+  }
+  
+  return {
+    ruleType: bestRuleType,
+    confidence: bestScore,
+    bestRule: bestRule
+  };
+}
+
+/**
  * Main function to analyze document text against party-specific rules
+ * Improved with two-phase analysis: Detection → Quality Assessment
  */
 export async function analyzeDocument(
   documentText: string, 
@@ -151,7 +242,7 @@ export async function analyzeDocument(
     ]);
     
     const matches: ClauseMatch[] = [];
-    const foundClauseIds = new Set<string>();
+    const missingClauses: string[] = [];
     
     // Group rules by clause for organized analysis
     const rulesByClause = rules.reduce((acc, rule) => {
@@ -162,60 +253,68 @@ export async function analyzeDocument(
       return acc;
     }, {} as Record<string, ClauseRule[]>);
     
-    // Analyze each clause
+    // Analyze each clause with improved two-phase approach
     for (const clause of clauses) {
       const clauseRules = rulesByClause[clause.id] || [];
-      let bestMatch: ClauseMatch | null = null;
-      let highestScore = 0;
       
-      for (const rule of clauseRules) {
-        if (!rule.keywords || rule.keywords.length === 0) continue;
-        
-        // Find relevant text segments for this rule
-        const segments = findRelevantTextSegments(documentText, rule.keywords);
-        
-        for (const segment of segments) {
-          if (segment.score > highestScore) {
-            highestScore = segment.score;
-            
-            const { matchedKeywords } = calculateKeywordOverlap(segment.text, rule.keywords);
-            
-            bestMatch = {
-              clauseId: rule.clause_id,
-              clauseName: clause.name,
-              ruleId: rule.id,
-              ruleType: rule.rule_type,
-              matchedText: segment.text,
-              matchedKeywords,
-              confidenceScore: segment.score,
-              position: segment.position
-            };
-          }
-        }
+      // PHASE 1: DETECTION - Does this clause exist in the document?
+      const detection = detectClauseInDocument(documentText, clause.name);
+      
+      if (!detection.detected) {
+        // Truly missing clause
+        missingClauses.push(clause.name);
+        continue;
       }
       
-      if (bestMatch && bestMatch.confidenceScore >= 0.2) { // Minimum threshold
-        matches.push(bestMatch);
-        foundClauseIds.add(clause.id);
+      // PHASE 2: QUALITY ASSESSMENT - How good is this clause for the party?
+      const evaluation = evaluateClauseForParty(detection.bestText, clauseRules, partyPerspective);
+      
+      if (evaluation) {
+        const { matchedKeywords } = calculateKeywordOverlap(detection.bestText, evaluation.bestRule.keywords || []);
+        
+        const match: ClauseMatch = {
+          clauseId: clause.id,
+          clauseName: clause.name,
+          ruleId: evaluation.bestRule.id,
+          ruleType: evaluation.ruleType,
+          matchedText: detection.bestText,
+          matchedKeywords,
+          confidenceScore: evaluation.confidence,
+          position: { start: 0, end: detection.bestText.length } // Simplified position
+        };
+        
+        matches.push(match);
+      } else {
+        // Clause detected but couldn't evaluate properly - mark as missing for now
+        missingClauses.push(clause.name);
       }
     }
     
-    // Identify missing clauses
-    const missingClauses = clauses
-      .filter(clause => !foundClauseIds.has(clause.id))
-      .map(clause => clause.name);
-    
-    // Calculate overall score
+    // Calculate overall score based on risk assessment
     const totalClauses = clauses.length;
     const foundClauses = matches.length;
     const avgConfidence = matches.length > 0 
       ? matches.reduce((sum, match) => sum + match.confidenceScore, 0) / matches.length 
       : 0;
     
-    const overallScore = (foundClauses / totalClauses) * 0.6 + avgConfidence * 0.4;
+    // Risk-based scoring: not_acceptable clauses increase risk
+    const riskScore = matches.reduce((risk, match) => {
+      if (match.ruleType === 'not_acceptable') return risk + 0.3;
+      if (match.ruleType === 'fallback') return risk + 0.1;
+      return risk; // starting_position adds no risk
+    }, 0);
+    
+    const overallScore = Math.max(0, (foundClauses / totalClauses) * 0.5 + avgConfidence * 0.3 + (1 - riskScore) * 0.2);
     
     return {
-      matches: matches.sort((a, b) => b.confidenceScore - a.confidenceScore),
+      matches: matches.sort((a, b) => {
+        // Sort by risk level first (not_acceptable first), then confidence
+        const riskOrder = { 'not_acceptable': 3, 'fallback': 2, 'starting_position': 1 };
+        const aRisk = riskOrder[a.ruleType];
+        const bRisk = riskOrder[b.ruleType];
+        if (aRisk !== bRisk) return bRisk - aRisk;
+        return b.confidenceScore - a.confidenceScore;
+      }),
       missingClauses,
       overallScore: Math.round(overallScore * 100) / 100,
       partyPerspective

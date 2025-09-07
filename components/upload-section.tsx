@@ -11,7 +11,7 @@ import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface UploadSectionProps {
   partyPerspective: PartyPerspective;
-  onUploadComplete: (reviewId: string) => void;
+  onUploadComplete: (reviewId: string, clientName?: string, ndaTitle?: string, overallScore?: number) => void;
   onProgressUpdate: (progress: number) => void;
 }
 
@@ -167,9 +167,31 @@ export function UploadSection({
       
       setUploadState(prev => ({ ...prev, status: 'complete' }));
 
+      // Extract overall score from analysis or fetch from review API
+      let overallScore: number | undefined;
+      try {
+        if (analysisResult.data?.analysis?.overallScore) {
+          overallScore = analysisResult.data.analysis.overallScore;
+        } else {
+          // Fallback: fetch from review API
+          const reviewResponse = await fetch(`/api/reviews/${reviewId}`);
+          const reviewData = await reviewResponse.json();
+          if (reviewData.success && reviewData.data?.review?.overallScore) {
+            overallScore = reviewData.data.review.overallScore;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch overall score:', err);
+      }
+
       // Auto-navigate to results after a brief delay
       setTimeout(() => {
-        onUploadComplete(reviewId);
+        onUploadComplete(
+          reviewId, 
+          formData.clientName || undefined, 
+          formData.ndaTitle || undefined, 
+          overallScore
+        );
       }, 1500);
 
     } catch (error) {

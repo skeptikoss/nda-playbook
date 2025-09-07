@@ -142,11 +142,7 @@ export function ClauseDetailPanel({
       />
 
       {/* Sliding Panel */}
-      <div className={`
-        fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 
-        transform transition-transform duration-300 ease-in-out border-l border-neutral-200
-        ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-      `}>
+      <div className="w-full h-full bg-white border-l border-neutral-200 flex flex-col">
         <div className="flex flex-col h-full">
           
           {/* Panel Header */}
