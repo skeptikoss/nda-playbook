@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PartySelection } from './party-selection';
 import { PlaybookBrowser } from './playbook-browser';
 import { UploadSection } from './upload-section';
@@ -140,12 +140,12 @@ export function NDAPlaybookApp() {
     }));
   };
 
-  const cycleThroughParties = () => {
+  const cycleThroughParties = useCallback(() => {
     const parties: PartyPerspective[] = ['receiving', 'disclosing', 'mutual'];
     const currentIndex = parties.indexOf(appState.partyPerspective!);
     const nextIndex = (currentIndex + 1) % parties.length;
     handleSwitchParty(parties[nextIndex]);
-  };
+  }, [appState.partyPerspective, handleSwitchParty]);
   
 
   // Global keyboard shortcuts
@@ -426,7 +426,7 @@ export function NDAPlaybookApp() {
           {appState.currentSection === 'results' && (appState.reviewId || selectedStoredAnalysis) && (
             <div className="h-full">
               <AnalysisResults
-                reviewId={appState.reviewId || selectedStoredAnalysis}
+                reviewId={appState.reviewId || selectedStoredAnalysis || ''}
                 partyPerspective={appState.partyPerspective}
                 onSwitchParty={handleSwitchParty}
               />
