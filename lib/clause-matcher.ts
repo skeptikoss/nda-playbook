@@ -23,7 +23,35 @@ export interface AnalysisResult {
 }
 
 /**
- * Calculate keyword overlap score between text and rule keywords
+ * Calculate Levenshtein distance for fuzzy matching
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+  
+  for (let i = 0; i <= str1.length; i += 1) {
+    matrix[0][i] = i;
+  }
+  
+  for (let j = 0; j <= str2.length; j += 1) {
+    matrix[j][0] = j;
+  }
+  
+  for (let j = 1; j <= str2.length; j += 1) {
+    for (let i = 1; i <= str1.length; i += 1) {
+      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1,
+        matrix[j - 1][i] + 1,
+        matrix[j - 1][i - 1] + indicator
+      );
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+}
+
+/**
+ * Enhanced keyword overlap calculation with fuzzy matching and phrase detection
  */
 function calculateKeywordOverlap(text: string, keywords: string[]): {
   matchedKeywords: string[];
@@ -31,24 +59,66 @@ function calculateKeywordOverlap(text: string, keywords: string[]): {
 } {
   const normalizedText = text.toLowerCase();
   const matchedKeywords: string[] = [];
+  let totalMatchScore = 0;
   
   for (const keyword of keywords) {
     const normalizedKeyword = keyword.toLowerCase();
+    let matched = false;
+    let matchScore = 0;
+    
+    // Exact phrase matching (highest score)
     if (normalizedText.includes(normalizedKeyword)) {
       matchedKeywords.push(keyword);
+      matchScore = 1.0;
+      matched = true;
     }
+    // Word-boundary matching for multi-word phrases
+    else if (normalizedKeyword.includes(' ')) {
+      const keywordWords = normalizedKeyword.split(' ');
+      const foundWords = keywordWords.filter(word => 
+        normalizedText.includes(word) || 
+        normalizedText.split(/\W+/).some(textWord => 
+          levenshteinDistance(textWord, word) <= Math.max(1, Math.floor(word.length * 0.15))
+        )
+      );
+      
+      if (foundWords.length >= keywordWords.length * 0.7) { // 70% of words must match
+        matchedKeywords.push(keyword);
+        matchScore = foundWords.length / keywordWords.length;
+        matched = true;
+      }
+    }
+    // Fuzzy matching for single words
+    else {
+      const textWords = normalizedText.split(/\W+/);
+      for (const textWord of textWords) {
+        if (textWord.length >= 3) { // Only fuzzy match words of reasonable length
+          const distance = levenshteinDistance(textWord, normalizedKeyword);
+          const maxDistance = Math.max(1, Math.floor(normalizedKeyword.length * 0.2)); // 20% error tolerance
+          
+          if (distance <= maxDistance) {
+            matchedKeywords.push(keyword);
+            matchScore = 1 - (distance / normalizedKeyword.length);
+            matched = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    totalMatchScore += matchScore;
   }
   
-  // Score is percentage of keywords that matched
-  const score = keywords.length > 0 ? (matchedKeywords.length / keywords.length) : 0;
+  // Weighted score considering both match count and match quality
+  const score = keywords.length > 0 ? totalMatchScore / keywords.length : 0;
   
-  return { matchedKeywords, score };
+  return { matchedKeywords: Array.from(new Set(matchedKeywords)), score };
 }
 
 /**
- * Find text segments that might contain specific clause content
+ * Enhanced text segmentation that better identifies clause boundaries
  */
-function findRelevantTextSegments(text: string, keywords: string[], maxSegmentLength = 500): Array<{
+function findRelevantTextSegments(text: string, keywords: string[], maxSegmentLength = 800): Array<{
   text: string;
   position: { start: number; end: number };
   score: number;
@@ -59,26 +129,62 @@ function findRelevantTextSegments(text: string, keywords: string[], maxSegmentLe
     score: number;
   }> = [];
   
+  // Split by multiple delimiters that commonly separate clauses in legal documents
+  const clauseDelimiters = /(?:\n\s*\d+\.|\n\s*\([a-z]\)|\n\s*[A-Z][A-Z\s]+:|\n{2,}|\.(?=\s*[A-Z][a-z]+\s+[a-z]+)|;\s*(?=[A-Z]))/;
+  const potentialClauses = text.split(clauseDelimiters).filter(s => s.trim().length > 20);
+  
+  // Also split by sentences for finer granularity
   const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
   
-  for (let i = 0; i < sentences.length; i++) {
-    // Create overlapping windows of 1-3 sentences
-    for (let windowSize = 1; windowSize <= Math.min(3, sentences.length - i); windowSize++) {
-      const segmentText = sentences.slice(i, i + windowSize).join('. ').trim();
+  // Combine both approaches
+  const textSegments = [...potentialClauses, ...sentences];
+  
+  for (const segmentText of textSegments) {
+    const cleanedSegment = segmentText.trim();
+    
+    if (cleanedSegment.length < 20 || cleanedSegment.length > maxSegmentLength) continue;
+    
+    const { matchedKeywords, score } = calculateKeywordOverlap(cleanedSegment, keywords);
+    
+    if (score > 0.2) { // Increased threshold for better precision
+      // Find more accurate position using word boundaries
+      const startIndex = text.toLowerCase().indexOf(cleanedSegment.toLowerCase());
+      const endIndex = startIndex + cleanedSegment.length;
       
-      if (segmentText.length > maxSegmentLength) continue;
-      
-      const { matchedKeywords, score } = calculateKeywordOverlap(segmentText, keywords);
-      
-      if (score > 0.1) { // Only include segments with some keyword overlap
-        const start = text.indexOf(segmentText);
-        const end = start + segmentText.length;
+      // Check if this segment overlaps significantly with existing segments
+      const hasSignificantOverlap = segments.some(existing => {
+        const overlapStart = Math.max(existing.position.start, startIndex);
+        const overlapEnd = Math.min(existing.position.end, endIndex);
+        const overlapLength = Math.max(0, overlapEnd - overlapStart);
+        const segmentLength = endIndex - startIndex;
+        const overlapRatio = overlapLength / segmentLength;
         
+        return overlapRatio > 0.7; // 70% overlap threshold
+      });
+      
+      if (!hasSignificantOverlap) {
         segments.push({
-          text: segmentText,
-          position: { start: Math.max(0, start), end },
+          text: cleanedSegment,
+          position: { start: Math.max(0, startIndex), end: endIndex },
           score
         });
+      } else {
+        // If overlapping, keep the one with higher score
+        const existingIndex = segments.findIndex(existing => {
+          const overlapStart = Math.max(existing.position.start, startIndex);
+          const overlapEnd = Math.min(existing.position.end, endIndex);
+          const overlapLength = Math.max(0, overlapEnd - overlapStart);
+          const segmentLength = endIndex - startIndex;
+          return overlapLength / segmentLength > 0.7;
+        });
+        
+        if (existingIndex !== -1 && score > segments[existingIndex].score) {
+          segments[existingIndex] = {
+            text: cleanedSegment,
+            position: { start: Math.max(0, startIndex), end: endIndex },
+            score
+          };
+        }
       }
     }
   }
@@ -86,7 +192,7 @@ function findRelevantTextSegments(text: string, keywords: string[], maxSegmentLe
   // Sort by score and return top segments
   return segments
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5); // Top 5 most relevant segments
+    .slice(0, 8); // Increased to top 8 most relevant segments
 }
 
 /**
@@ -137,23 +243,48 @@ async function fetchClauses() {
 }
 
 /**
- * Broad detection keywords for each clause type (Phase 1: Detection)
+ * Enhanced detection keywords for each clause type (Phase 1: Detection)
+ * Including synonyms, legal variations, and common phrasings
  */
 const DETECTION_KEYWORDS = {
-  'definition': ['confidential', 'information', 'define', 'proprietary', 'secret', 'disclosure'],
-  'duration': ['year', 'period', 'term', 'duration', 'survive', 'time', 'expir', 'effect'],
-  'governing': ['govern', 'jurisdiction', 'court', 'law', 'dispute', 'forum', 'venue']
+  'definition': [
+    // Core terms
+    'confidential', 'information', 'define', 'proprietary', 'secret', 'disclosure',
+    // Legal variations
+    'confidentiality', 'proprietary information', 'trade secret', 'non-public',
+    'sensitive information', 'business information', 'technical information',
+    // Definition patterns
+    'shall mean', 'means', 'includes', 'defined as', 'refers to',
+    'confidential information shall include', 'for purposes of this agreement'
+  ],
+  'duration': [
+    // Time periods
+    'year', 'years', 'period', 'term', 'duration', 'survive', 'time', 'expir', 'effect',
+    // Legal duration patterns
+    'perpetuity', 'indefinite', 'until', 'from the date', 'effective date',
+    'termination', 'expiration', 'survival', 'continue in effect',
+    // Common durations
+    'three years', 'five years', 'seven years', 'ten years', 'two years'
+  ],
+  'governing': [
+    // Jurisdiction terms
+    'govern', 'governed', 'jurisdiction', 'court', 'law', 'dispute', 'forum', 'venue',
+    // Legal system references
+    'applicable law', 'laws of', 'under the laws', 'subject to the laws',
+    'federal court', 'state court', 'arbitration', 'mediation',
+    // Dispute resolution
+    'exclusive jurisdiction', 'submit to jurisdiction', 'waive objection'
+  ]
 };
 
 /**
- * Detect if a clause type exists in the document (broad search)
+ * Enhanced clause detection with context awareness and multiple validation approaches
  */
 function detectClauseInDocument(text: string, clauseName: string): {
   detected: boolean;
   bestText: string;
   confidence: number;
 } {
-  const normalizedText = text.toLowerCase();
   const clauseKey = clauseName.toLowerCase().includes('definition') ? 'definition' :
                    clauseName.toLowerCase().includes('duration') ? 'duration' :
                    clauseName.toLowerCase().includes('governing') ? 'governing' : null;
@@ -163,29 +294,61 @@ function detectClauseInDocument(text: string, clauseName: string): {
   }
   
   const keywords = DETECTION_KEYWORDS[clauseKey];
-  const segments = findRelevantTextSegments(text, keywords, 800);
+  const segments = findRelevantTextSegments(text, keywords, 1000);
   
   if (segments.length === 0) {
     return { detected: false, bestText: '', confidence: 0 };
   }
   
-  // Find the best segment based on keyword density
-  const bestSegment = segments[0];
-  const keywordCount = keywords.filter(keyword => 
-    normalizedText.includes(keyword.toLowerCase())
-  ).length;
+  // Apply context-specific validation for each clause type
+  const contextValidatedSegments = segments.filter(segment => {
+    
+    switch (clauseKey) {
+      case 'definition':
+        // Must contain definitional language patterns
+        return /(?:shall mean|means|includes?|defined as|refers to|for purposes of)/i.test(segment.text) ||
+               /confidential.*information.*(?:includes?|means|shall mean)/i.test(segment.text);
+      
+      case 'duration':
+        // Must contain time references with legal context
+        return /(?:\d+\s*years?|\d+\s*months?|perpetuity|indefinite|until|termination|expir|survival)/i.test(segment.text) &&
+               /(?:period|term|duration|effect|continue|survive|remain)/i.test(segment.text);
+      
+      case 'governing':
+        // Must contain jurisdiction or dispute resolution language
+        return /(?:govern|jurisdiction|applicable law|laws? of|dispute|court|forum|venue|arbitrat)/i.test(segment.text);
+      
+      default:
+        return true;
+    }
+  });
   
-  const detected = keywordCount >= 1; // At least 1 detection keyword must be present
+  if (contextValidatedSegments.length === 0) {
+    // Fallback to original segments if context validation is too strict
+    const bestSegment = segments[0];
+    return {
+      detected: bestSegment.score > 0.3, // Higher threshold for fallback
+      bestText: bestSegment.text,
+      confidence: bestSegment.score * 0.7 // Reduced confidence for non-validated matches
+    };
+  }
+  
+  // Select best validated segment
+  const bestSegment = contextValidatedSegments[0];
+  
+  // Bonus confidence for context validation
+  const validationBonus = 0.2;
+  const adjustedConfidence = Math.min(1.0, bestSegment.score + validationBonus);
   
   return {
-    detected,
+    detected: adjustedConfidence > 0.4, // Higher threshold for validated matches
     bestText: bestSegment.text,
-    confidence: bestSegment.score
+    confidence: adjustedConfidence
   };
 }
 
 /**
- * Evaluate clause quality for specific party perspective (Phase 2: Quality Assessment)
+ * Enhanced quality evaluation with party-perspective context and rule prioritisation
  */
 function evaluateClauseForParty(
   detectedText: string,
@@ -196,32 +359,90 @@ function evaluateClauseForParty(
   let bestRule: ClauseRule | null = null;
   let bestRuleType: 'starting_position' | 'fallback' | 'not_acceptable' = 'not_acceptable';
   
-  // Test against each rule type to find the best match
+  // Group rules by type for better evaluation
+  const rulesByType = clauseRules.reduce((acc, rule) => {
+    if (!acc[rule.rule_type]) acc[rule.rule_type] = [];
+    acc[rule.rule_type].push(rule);
+    return acc;
+  }, {} as Record<string, ClauseRule[]>);
+  
+  // Test against each rule type with weighted scoring
   for (const rule of clauseRules) {
     if (!rule.keywords || rule.keywords.length === 0) continue;
     
     const { score } = calculateKeywordOverlap(detectedText, rule.keywords);
     
-    if (score > bestScore) {
-      bestScore = score;
+    // Apply party-specific weighting and rule context
+    let weightedScore = score;
+    
+    // Bonus for rule text patterns in detected text
+    if (rule.rule_text) {
+      const ruleTextWords = rule.rule_text.toLowerCase().split(/\s+/).slice(0, 10); // First 10 words
+      const ruleTextMatches = ruleTextWords.filter(word => 
+        word.length > 3 && detectedText.toLowerCase().includes(word)
+      ).length;
+      
+      if (ruleTextMatches > 0) {
+        weightedScore += (ruleTextMatches / ruleTextWords.length) * 0.3; // Up to 30% bonus
+      }
+    }
+    
+    // Rule type priority weighting based on party perspective
+    const typeWeights = {
+      'receiving': { 'starting_position': 1.2, 'fallback': 1.0, 'not_acceptable': 0.8 },
+      'disclosing': { 'starting_position': 1.2, 'fallback': 1.0, 'not_acceptable': 1.1 },
+      'mutual': { 'starting_position': 1.1, 'fallback': 1.0, 'not_acceptable': 0.9 }
+    };
+    
+    const typeWeight = typeWeights[partyPerspective]?.[rule.rule_type] || 1.0;
+    weightedScore *= typeWeight;
+    
+    // Severity bonus (higher severity = more important rule)
+    if (rule.severity) {
+      weightedScore += (rule.severity - 1) * 0.1; // Up to 40% bonus for severity 5
+    }
+    
+    if (weightedScore > bestScore) {
+      bestScore = weightedScore;
       bestRule = rule;
       bestRuleType = rule.rule_type;
     }
   }
   
-  if (!bestRule || bestScore < 0.1) {
-    // If no specific rule matched well, classify based on party perspective and content analysis
-    const defaultRule = clauseRules.find(r => r.rule_type === 'not_acceptable') || clauseRules[0];
-    return {
-      ruleType: 'not_acceptable', // Default to not acceptable if no good matches
-      confidence: 0.3, // Low confidence for default classification
-      bestRule: defaultRule
+  // Enhanced fallback logic with party perspective consideration
+  if (!bestRule || bestScore < 0.25) {
+    // Try to find the most appropriate rule based on party perspective
+    const preferredRuleTypes = {
+      'receiving': ['starting_position', 'fallback', 'not_acceptable'],
+      'disclosing': ['not_acceptable', 'fallback', 'starting_position'],
+      'mutual': ['fallback', 'starting_position', 'not_acceptable']
     };
+    
+    for (const ruleType of preferredRuleTypes[partyPerspective]) {
+      const rulesOfType = rulesByType[ruleType];
+      if (rulesOfType && rulesOfType.length > 0) {
+        // Pick the rule with highest severity
+        const defaultRule = rulesOfType.sort((a, b) => (b.severity || 1) - (a.severity || 1))[0];
+        return {
+          ruleType: ruleType as 'starting_position' | 'fallback' | 'not_acceptable',
+          confidence: 0.4, // Moderate confidence for party-context fallback
+          bestRule: defaultRule
+        };
+      }
+    }
+    
+    // Ultimate fallback
+    const ultimateFallback = clauseRules[0];
+    return ultimateFallback ? {
+      ruleType: 'not_acceptable', // Conservative default
+      confidence: 0.2, // Low confidence for ultimate fallback
+      bestRule: ultimateFallback
+    } : null;
   }
   
   return {
     ruleType: bestRuleType,
-    confidence: bestScore,
+    confidence: Math.min(1.0, bestScore), // Cap at 100%
     bestRule: bestRule
   };
 }

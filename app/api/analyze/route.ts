@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { analyzeDocument, formatAnalysisResults } from '@/lib/clause-matcher';
+import { analyzeDocument, formatAnalysisResults } from '@/lib/enhancedDocumentAnalysis';
 import { generateClauseSuggestion, generateMissingClauseSuggestion } from '@/lib/ai-suggestions';
 import type { PartyPerspective } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { reviewId } = body;
+    const { reviewId, documentText, partyPerspective } = body;
 
     if (!reviewId) {
       return NextResponse.json(
@@ -20,55 +20,24 @@ export async function POST(request: NextRequest) {
     let review: any;
     
     if (reviewId.startsWith('dev-')) {
-      // Development mode: return mock analysis results (skip actual analysis)
-      console.log('Development mode detected - returning mock analysis results');
+      // Development mode: use passed document text and party perspective for REAL analysis
+      console.log('Development mode detected - running real analysis on provided document');
       
-      const mockAnalysisResults = {
-        clauseMatches: [
-          {
-            clauseId: 1,
-            clauseName: 'Definition of Confidential Information',
-            matchType: 'fallback',
-            confidenceScore: 0.85,
-            riskLevel: 3,
-            detectedText: 'All proprietary information, technical data, trade secrets...',
-            recommendedAction: 'Consider narrowing scope for receiving party protection',
-            suggestedText: 'Only information specifically marked as confidential'
-          },
-          {
-            clauseId: 2,
-            clauseName: 'Duration of Confidentiality Obligations',
-            matchType: 'not_acceptable',
-            confidenceScore: 0.92,
-            riskLevel: 5,
-            detectedText: 'period of five (5) years',
-            recommendedAction: 'Reduce duration for receiving party advantage',
-            suggestedText: 'period of three (3) years'
-          }
-        ],
-        missingClauses: [
-          {
-            clauseId: 3,
-            clauseName: 'Governing Law and Jurisdictions',
-            recommendedAction: 'Add governing law clause',
-            suggestedText: 'This Agreement shall be governed by Singapore law'
-          }
-        ],
-        overallScore: 73,
-        partyPerspective: 'receiving'
+      if (!documentText) {
+        return NextResponse.json(
+          { error: 'Document text is required for development mode analysis' },
+          { status: 400 }
+        );
+      }
+      
+      review = {
+        id: reviewId,
+        original_text: documentText,
+        party_perspective: partyPerspective || 'receiving',
+        status: 'processing'
       };
       
-      return NextResponse.json({
-        success: true,
-        data: {
-          reviewId,
-          analysisResults: mockAnalysisResults,
-          metadata: {
-            analysisType: 'development_mock',
-            partyPerspective: 'receiving'
-          }
-        }
-      });
+      console.log(`Development mode: analyzing ${documentText.length} characters for ${review.party_perspective} party`);
     } else {
       // Production mode: fetch from database
       const { data: dbReview, error: reviewError } = await supabaseAdmin

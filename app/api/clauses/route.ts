@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Group rules by rule type for each clause
-      const processedClauses = clauses.map(clause => {
+      const processedClauses = clauses.map((clause: any) => {
         const rulesByType = {
           starting_position: null,
           fallback: null,
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       });
 
       // Calculate summary statistics
-      const totalRules = processedClauses.reduce((sum, clause) => sum + clause.totalRules, 0);
+      const totalRules = processedClauses.reduce((sum: number, clause: any) => sum + clause.totalRules, 0);
       const availablePerspectives = ['receiving', 'disclosing', 'mutual'];
       
       return NextResponse.json({

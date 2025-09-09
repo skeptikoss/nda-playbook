@@ -124,6 +124,8 @@ export function NDAPlaybookApp() {
   };
 
   const handleBackToPartySelection = () => {
+    // Clear localStorage to prevent auto-restore of party perspective
+    localStorage.removeItem('nda-playbook-party-perspective');
     setAppState({
       currentSection: 'party-selection',
       partyPerspective: null,
@@ -133,12 +135,12 @@ export function NDAPlaybookApp() {
     setSelectedStoredAnalysis(null); // Clear selected stored analysis
   };
 
-  const handleSwitchParty = (newPerspective: PartyPerspective) => {
+  const handleSwitchParty = useCallback((newPerspective: PartyPerspective) => {
     setAppState(prev => ({
       ...prev,
       partyPerspective: newPerspective
     }));
-  };
+  }, []);
 
   const cycleThroughParties = useCallback(() => {
     const parties: PartyPerspective[] = ['receiving', 'disclosing', 'mutual'];

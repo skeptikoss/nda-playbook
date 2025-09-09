@@ -131,7 +131,7 @@ export function UploadSection({
         throw new Error(uploadResult.error || 'Upload failed');
       }
 
-      const reviewId = uploadResult.data.reviewId;
+      const reviewId = uploadResult.data.review.id;
       setUploadState(prev => ({ ...prev, reviewId }));
 
       updateProgress(30, 'Extracting text from document...');
@@ -149,7 +149,11 @@ export function UploadSection({
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ reviewId })
+        body: JSON.stringify({ 
+          reviewId,
+          documentText: reviewId.startsWith('dev-') ? uploadState.textInput : undefined,
+          partyPerspective: reviewId.startsWith('dev-') ? partyPerspective : undefined
+        })
       });
 
       const analysisResult = await analysisResponse.json();

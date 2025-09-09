@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
 import { parseDocument, preprocessText } from '@/lib/document-parser';
 import type { PartyPerspective } from '@/types';
 
@@ -73,115 +72,41 @@ export async function POST(request: NextRequest) {
 
     const processedText = preprocessText(text);
 
-    // Upload file to Supabase Storage (with fallback for development)
-    const fileName = `${Date.now()}-${file.name}`;
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    
-    let uploadData: any;
-    let filePath = `dev-mode/${fileName}`;  // Default path for development
-    
-    const { data, error: uploadError } = await supabaseAdmin.storage
-      .from('nda-documents')
-      .upload(fileName, fileBuffer, {
-        contentType: isTextInput ? 'text/plain' : file.type,
-        metadata: {
-          clientName,
-          ndaTitle,
-          originalName: file.name,
-          sourceType: isTextInput ? 'text_input' : 'file_upload'
-        }
-      });
+    // Create mock review for algorithm testing (no database dependency)
+    console.log('Creating mock review for algorithm testing - bypassing database');
+    const mockReview = {
+      id: `dev-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      client_name: clientName,
+      nda_title: ndaTitle,
+      file_path: `dev-mode/${Date.now()}-${file.name}`,
+      original_text: processedText,
+      party_perspective: partyPerspective,
+      status: 'uploaded',
+      created_at: new Date().toISOString(),
+      metadata
+    };
 
-    if (uploadError) {
-      console.warn('Storage upload failed (likely placeholder API keys):', uploadError.message);
-      console.log('Continuing with development mode - file stored locally in memory only');
-      // In development mode with placeholder keys, continue without storage
-      uploadData = { path: filePath };
-    } else {
-      uploadData = data;
-      filePath = uploadData.path;
-    }
-
-    // Create review record in database (with development mode fallback)
-    const { data: review, error: reviewError } = await supabaseAdmin
-      .from('reviews')
-      .insert({
-        client_name: clientName,
-        nda_title: ndaTitle,
-        file_path: filePath,
-        original_text: processedText,
-        party_perspective: partyPerspective,
-        status: 'processing'
-      })
-      .select()
-      .single();
-
-    if (reviewError) {
-      console.warn('Database insert failed (likely placeholder API keys):', reviewError.message);
-      console.log('Continuing with development mode - using mock review data');
-      
-      // Clean up uploaded file (only if it was actually uploaded to storage)
-      if (!uploadError && uploadData) {
-        await supabaseAdmin.storage
-          .from('nda-documents')
-          .remove([fileName]);
-      }
-
-      // In development mode, create a mock review object
-      const mockReview = {
-        id: `dev-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        client_name: clientName,
-        nda_title: ndaTitle,
-        file_path: filePath,
-        original_text: processedText,
-        party_perspective: partyPerspective,
-        status: 'processing',
-        created_at: new Date().toISOString()
-      };
-      
-      console.log(`Mock review created: ${mockReview.id}`);
-      
-      return NextResponse.json({
-        success: true,
-        data: {
-          reviewId: mockReview.id,
-          fileName: file.name,
-          filePath: filePath,
-          metadata: {
-            ...metadata,
-            partyPerspective,
-            clientName,
-            ndaTitle,
-            developmentMode: true
-          }
-        }
-      });
-    }
-
-    console.log(`Review created: ${review.id}`);
+    console.log(`Review created: ${mockReview.id} for party: ${partyPerspective}`);
 
     return NextResponse.json({
       success: true,
       data: {
-        reviewId: review.id,
-        fileName: file.name,
-        filePath: filePath,
+        review: mockReview,
         metadata: {
-          ...metadata,
-          partyPerspective,
-          clientName,
-          ndaTitle
+          wordCount: metadata.wordCount,
+          characterCount: metadata.characterCount,
+          sourceType: metadata.sourceType,
+          fileName: file.name,
+          fileSize: file.size
         }
-      }
+      },
+      message: `Document uploaded successfully for ${partyPerspective} party analysis`
     });
 
   } catch (error) {
     console.error('Upload API error:', error);
     return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

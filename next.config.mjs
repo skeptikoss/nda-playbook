@@ -10,10 +10,26 @@ const nextConfig = {
         'pdf-parse': 'commonjs pdf-parse'
       });
     }
+    
+    // Fix @xenova/transformers ONNX runtime build issues
+    config.externals.push({
+      'onnxruntime-node': 'commonjs onnxruntime-node',
+      '@xenova/transformers': isServer ? 'commonjs @xenova/transformers' : '@xenova/transformers'
+    });
+    
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
     };
+    
+    // Ignore native binaries in client bundle
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'onnxruntime-node': false
+      };
+    }
+    
     return config;
   },
 };

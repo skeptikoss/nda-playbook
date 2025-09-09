@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { PartyPerspective } from '@/types';
-import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Info, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 interface AnalysisResultsProps {
   reviewId: string;
@@ -30,6 +30,7 @@ interface ReviewData {
     partyPerspective: PartyPerspective;
     status: string;
     overallScore: number;
+    originalText?: string;
   };
   matrix: MatrixItem[];
   summary: {
@@ -49,6 +50,7 @@ export function AnalysisResults({ reviewId, partyPerspective, onSwitchParty }: A
   const [selectedAnalysis, setSelectedAnalysis] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
 
   const fetchAnalysisResults = useCallback(async () => {
     try {
@@ -185,6 +187,46 @@ export function AnalysisResults({ reviewId, partyPerspective, onSwitchParty }: A
         </div>
       </div>
 
+      {/* Compact Document Preview Section */}
+      <Card className="mb-4">
+        <CardContent className="p-4">
+          <Button
+            variant="ghost"
+            onClick={() => setIsPreviewExpanded(!isPreviewExpanded)}
+            className="w-full justify-between p-0 h-auto hover:bg-transparent"
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-gray-500" />
+              <div className="text-left">
+                <div className="font-medium text-sm">{data.review.ndaTitle}</div>
+                <div className="text-xs text-gray-500">{data.review.clientName} • {data.review.originalText?.length || 0} characters</div>
+              </div>
+            </div>
+            {isPreviewExpanded ? 
+              <ChevronUp className="w-4 h-4 text-gray-400" /> : 
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            }
+          </Button>
+          
+          {isPreviewExpanded && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="bg-gray-50 border rounded-lg p-4 max-h-48 overflow-y-auto">
+                <div className="text-sm font-mono text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {data.review.originalText ? 
+                    data.review.originalText.substring(0, 1500) + (data.review.originalText.length > 1500 ? '...' : '')
+                    : 'Document text not available'}
+                </div>
+              </div>
+              {data.review.originalText && data.review.originalText.length > 1500 && (
+                <div className="text-xs text-gray-500 mt-2">
+                  Showing first 1,500 characters of {data.review.originalText.length} total
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
@@ -225,10 +267,10 @@ export function AnalysisResults({ reviewId, partyPerspective, onSwitchParty }: A
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse table-fixed">
                   <thead>
                     <tr>
-                      <th className="p-2 text-left font-medium text-gray-700 border-b text-sm">
+                      <th className="p-2 text-left font-medium text-gray-700 border-b text-sm w-[120px]">
                         Clause
                       </th>
                       <th className="p-2 text-center font-medium text-gray-700 border-b text-sm">
@@ -248,8 +290,10 @@ export function AnalysisResults({ reviewId, partyPerspective, onSwitchParty }: A
                   <tbody>
                     {data.matrix.map((item, index) => (
                       <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium text-gray-900 text-sm">
-                          {item.clauseName.split(' ').slice(0, 2).join(' ')}
+                        <td className="p-2 font-medium text-gray-900 text-sm min-w-[120px]">
+                          <div className="truncate" title={item.clauseName}>
+                            {item.clauseName}
+                          </div>
                         </td>
                         
                         <td 

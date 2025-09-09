@@ -162,6 +162,7 @@ export async function GET(
           partyPerspective: review.party_perspective,
           status: review.status,
           overallScore: review.overall_score,
+          originalText: review.original_text,
           createdAt: review.created_at,
           updatedAt: review.updated_at
         },

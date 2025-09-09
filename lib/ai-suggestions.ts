@@ -217,7 +217,7 @@ export async function generateMissingClauseSuggestion(
       throw new Error(`Failed to fetch rules: ${error.message}`);
     }
 
-    const relevantRule = rules.find(rule => 
+    const relevantRule = rules.find((rule: any) => 
       clauseName.toLowerCase().includes('definition') && rule.clause_id.includes('definition') ||
       clauseName.toLowerCase().includes('duration') && rule.clause_id.includes('duration') ||
       clauseName.toLowerCase().includes('governing') && rule.clause_id.includes('governing')
